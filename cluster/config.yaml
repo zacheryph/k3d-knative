@@ -1,0 +1,15 @@
+---
+# k3d cluster create local --config=cluster/config.yaml
+apiVersion: k3d.io/v1alpha2
+kind: Simple
+name: local
+image: rancher/k3s:v1.21.2-k3s1
+servers: 1
+options:
+  k3d:
+    wait: true
+    disableLoadbalancer: true
+    disableHostIPInjection: false
+ports:
+- port: 80:80
+- port: 443:443

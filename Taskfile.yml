@@ -1,0 +1,50 @@
+# https://taskfile.dev
+
+version: '3'
+
+tasks:
+  default:
+    cmds:
+    - task -l
+    silent: true
+
+  create:
+    desc: create k3d cluster
+    cmds:
+    - k3d cluster create --config=cluster/config.yaml
+    - kubectl wait --for=condition=available --timeout=120s -n kube-system deployment/coredns
+
+  destroy:
+    desc: destroy k3d cluster
+    cmds:
+    - k3d cluster delete local
+
+  start:
+    desc: starts knative environment
+    cmds:
+    - k3d cluster start local
+
+  stop:
+    desc: stop knative environment
+    cmds:
+    - k3d cluster stop local
+
+  operator:
+    desc: install knative operator
+    cmds:
+    - kubectl --context=k3d-local apply --kustomize=cluster/operator
+    - kubectl --context=k3d-local wait --for=condition=available --timeout=120s -n kube-system deployment/knative-operator
+
+  knative:
+    desc: install knative serving/eventing
+    cmds:
+    - kubectl apply --kustomize=cluster/knative
+    - kubectl wait --for=condition=ready --timeout=300s -n knative-eventing knativeeventing/eventing
+    - kubectl wait --for=condition=ready --timeout=300s -n knative-serving knativeserving/serving
+
+  bootstrap:
+    desc: bootstrap local knative environment
+    cmds:
+    - task: create
+    - task: operator
+    - task: knative

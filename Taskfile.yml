@@ -2,6 +2,16 @@
 
 version: '3'
 
+vars:
+  KUBECTL: kubectl --context=k3d-local
+  KUBEAPPLY: "{{.KUBECTL}} apply"
+  KUSTOMIZE: "{{.KUBEAPPLY}} --kustomize"
+  KUBEWAIT: "{{.KUBECTL}} wait"
+  KUBEWAIT_AVAIL: "{{.KUBEWAIT}} --for=condition=available"
+  KUBEWAIT_READY: "{{.KUBEWAIT}} --for=condition=ready"
+  KUBECREATE: "{{.KUBECTL}} create -o yaml --dry-run=client"
+  KN: kn --context=k3d-local
+
 tasks:
   default:
     cmds:
@@ -12,7 +22,7 @@ tasks:
     desc: create k3d cluster
     cmds:
     - k3d cluster create --config=cluster/config.yaml
-    - kubectl wait --for=condition=available --timeout=120s -n kube-system deployment/coredns
+    - "{{.KUBEWAIT_AVAIL}} --timeout=120s -n kube-system deployment/coredns"
 
   destroy:
     desc: destroy k3d cluster
@@ -32,15 +42,15 @@ tasks:
   operator:
     desc: install knative operator
     cmds:
-    - kubectl --context=k3d-local apply --kustomize=cluster/operator
-    - kubectl --context=k3d-local wait --for=condition=available --timeout=120s -n kube-system deployment/knative-operator
+    - "{{.KUSTOMIZE}} cluster/operator"
+    - "{{.KUBEWAIT_AVAIL}} --timeout=120s -n kube-system deployment/knative-operator"
 
   knative:
     desc: install knative serving/eventing
     cmds:
-    - kubectl apply --kustomize=cluster/knative
-    - kubectl wait --for=condition=ready --timeout=300s -n knative-eventing knativeeventing/eventing
-    - kubectl wait --for=condition=ready --timeout=300s -n knative-serving knativeserving/serving
+    - "{{.KUSTOMIZE}} cluster/knative"
+    - "{{.KUBEWAIT_READY}} --timeout=300s -n knative-eventing knativeeventing/eventing"
+    - "{{.KUBEWAIT_READY}} --timeout=300s -n knative-serving knativeserving/serving"
 
   bootstrap:
     desc: bootstrap local knative environment
@@ -48,3 +58,47 @@ tasks:
     - task: create
     - task: operator
     - task: knative
+
+  extras:broker:
+    desc: "install extra: default broker"
+    cmds:
+    - "{{.KN}} broker create default || true"
+
+  extras:apiserver:
+    desc: "install extra: k8s apiserver source"
+    deps: [extras:broker]
+    cmds:
+    - "{{.KUBECREATE}} serviceaccount apiserver-source"
+    - |
+      {{.KUBECREATE}} clusterrole default-eventing-event-observer \
+        --resource=events --verb=get,list,watch \
+        | {{.KUBEAPPLY}} -f -
+    - |
+      {{.KUBECREATE}} clusterrolebinding default:apiserver-source:default-eventing-event-observer \
+        --clusterrole default-eventing-event-observer \
+        --serviceaccount default:apiserver-source \
+        | {{.KUBEAPPLY}} -f -
+    - |
+      {{.KN}} source apiserver create apiserver-source \
+        --resource Event:v1 --sink broker:default \
+        --service-account apiserver-source || true
+
+  extras:player:
+    desc: "install extra: cloudevents-player"
+    deps: [extras:broker]
+    cmds:
+    - |
+      {{.KN}} service create cloudevents-player \
+        --image ruromero/cloudevents-player:latest \
+        --env BROKER_URL=http://broker-ingress.knative-eventing.svc.cluster.local/default/default
+
+  extras:display:
+    desc: "install extra: event-display"
+    deps: [extras:broker]
+    cmds:
+    - |
+      {{.KN}} service create event-display \
+        --image gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
+    - |
+      {{.KN}} trigger create broker-to-event-display \
+        --sink ksvc:event-display

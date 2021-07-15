@@ -3,14 +3,16 @@
 version: '3'
 
 vars:
-  KUBECTL: kubectl --context=k3d-local
+  CLUSTER_NAME: knative
+  CONTEXT_NAME: "k3d-{{.CLUSTER_NAME}}"
+  KUBECTL: "kubectl --context={{.CONTEXT_NAME}}"
   KUBEAPPLY: "{{.KUBECTL}} apply"
   KUSTOMIZE: "{{.KUBEAPPLY}} --kustomize"
   KUBEWAIT: "{{.KUBECTL}} wait"
   KUBEWAIT_AVAIL: "{{.KUBEWAIT}} --for=condition=available"
   KUBEWAIT_READY: "{{.KUBEWAIT}} --for=condition=ready"
   KUBECREATE: "{{.KUBECTL}} create -o yaml --dry-run=client"
-  KN: kn --context=k3d-local
+  KN: "kn --context={{.CONTEXT_NAME}}"
 
 tasks:
   default:
@@ -27,17 +29,17 @@ tasks:
   destroy:
     desc: destroy k3d cluster
     cmds:
-    - k3d cluster delete local
+    - "k3d cluster delete {{.CLUSTER_NAME}}"
 
   start:
     desc: starts knative environment
     cmds:
-    - k3d cluster start local
+    - "k3d cluster start {{.CLUSTER_NAME}}"
 
   stop:
     desc: stop knative environment
     cmds:
-    - k3d cluster stop local
+    - "k3d cluster stop {{.CLUSTER_NAME}}"
 
   operator:
     desc: install knative operator

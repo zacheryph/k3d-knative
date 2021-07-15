@@ -24,7 +24,6 @@ tasks:
     desc: create k3d cluster
     cmds:
     - k3d cluster create --config=cluster/config.yaml
-    - "{{.KUBEWAIT_AVAIL}} --timeout=120s -n kube-system deployment/coredns"
 
   destroy:
     desc: destroy k3d cluster

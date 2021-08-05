@@ -6,6 +6,8 @@ metadata:
   name: serving
 spec:
   config:
+    deployment:
+      registriesSkippingTagResolving: r.vcap.me
     domain:
       vcap.me: ""
     network:

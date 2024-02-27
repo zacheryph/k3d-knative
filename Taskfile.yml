@@ -60,6 +60,12 @@ tasks:
     - task: operator
     - task: knative
 
+  extras:
+    desc: "list installed extras"
+    cmds:
+    - "{{.KN}} source apiserver list"
+
+
   extras:broker:
     desc: "install extra: default broker"
     cmds:
